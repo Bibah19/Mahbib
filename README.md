@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wedding Website (Next.js)
 
-## Getting Started
+A modern wedding invitation website where every guest can see the **real venue on an
+interactive map** and **reserve a seat that nobody else can take**.
 
-First, run the development server:
+Next.js (App Router) serves both the frontend and the backend: React Server Components render
+the invitation, Route Handlers expose the seat API, and a SQLite database stores the
+reservations. The original single-file design lives in `../index.html` and is kept as the
+visual reference.
+
+## What the site does
+
+| Section | Feature |
+| --- | --- |
+| Hero | Couple names, date/time/venue summary, live "seats secured" counters, share invitation |
+| Details | Wedding details plus the **real venue map** (Leaflet + OpenStreetMap/CARTO tiles, custom gold pin, popup with "Get directions") |
+| Secure a Seat | Category → table → seat picker; occupied seats are crossed out live; one atomic database write per reservation, so two guests on two phones can never take the same chair |
+| Direction | Written directions, "Get directions" / "Open Google Maps" / "Share direction" buttons and a real scannable QR code |
+| Gift | Bank details, copy-to-clipboard account number and a gift QR code |
+| `/invite/<code>` | Personal invitation page for each guest (name, category, table, seat, invite code, QR) |
+| `/admin` | Private list of all reservations, CSV export and "release seat" |
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build   # production build
+npm run start   # run the production build
+npx eslint .    # lint (Next.js 16 removed `next lint`)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Edit your wedding details
 
-## Learn More
+Everything guests see comes from **one file**: [`lib/wedding-config.ts`](lib/wedding-config.ts).
 
-To learn more about Next.js, take a look at the following resources:
+1. `brideName`, `groomName`, `weddingDate`, `weddingTime`, `dressCode`.
+2. `venue` — name, address, landmark/road/junction (used for the written directions) and
+   **`coordinates`**, which is the exact pin shown on the real map.
+3. Set `venue.coordinatesArePlaceholder` to `false` once the coordinates are real (while it is
+   `true` the map shows a red reminder chip so the site is never deployed with a wrong pin).
+4. `gift` — bank name, account name, account number.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Getting the coordinates:** open Google Maps, right-click the exact venue, click the
+coordinates that appear (`6.428100, 3.421900` → lat `6.428100`, lng `3.421900`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Optional: drop the couple's photo into `public/couple.jpg` and the hero uses it automatically
+(via `next/image`). Without it, a gold gradient backdrop is used instead.
 
-## Deploy on Vercel
+## Seating plan
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Categories, tables and seat counts live in [`lib/seating.ts`](lib/seating.ts) — ported 1:1 from
+the original `index.html`. Editing the numbers there immediately changes the dropdowns, the seat
+grid and the server-side validation.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Backend API
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/availability` | Live seat map (categories → tables → occupied seats) |
+| `POST` | `/api/reservations` | Reserve a seat. `201` on success, `409` when the seat was just taken, `400` invalid, `429` rate limited |
+| `GET` | `/api/reservations` | Admin: every reservation (requires `ADMIN_KEY`) |
+| `GET` | `/api/reservations?format=csv` | Admin: CSV export |
+| `DELETE` | `/api/reservations?id=<id>` | Admin: release a seat |
+
+## Data storage
+
+Reservations are stored in SQLite through Node's built-in `node:sqlite` (no extra package, no
+native build) at `data/wedding.db`, which is gitignored. The table has
+`UNIQUE (category, table_name, seat)` — that constraint is what makes duplicate seats impossible,
+even when two guests submit at the same instant. The second request gets a `409` and a freshly
+painted seat map.
+
+To move the database somewhere else, set `WEDDING_DB_PATH`. To deploy on a platform with an
+ephemeral filesystem (for example Vercel), point that variable at a persistent volume or replace
+[`lib/db.ts`](lib/db.ts) with a hosted Postgres/Supabase client — the rest of the app only talks
+to [`lib/reservations.ts`](lib/reservations.ts).
+
+## Environment variables
+
+Copy `.env.example` to `.env.local`:
+
+```bash
+RESEND_API_KEY=          # optional: send invitation emails automatically
+EMAIL_FROM="Weddings <invites@yourdomain.com>"
+ADMIN_KEY=               # protects /admin and the admin API
+WEDDING_DB_PATH=         # optional: custom SQLite path
+```
+
+Without `RESEND_API_KEY` nothing breaks: the guest sees the confirmation on screen and can use
+the "Open prepared email" (mailto) button or copy the personal invite link.
+
+## Project structure
+
+```
+app/
+  layout.tsx                metadata, fonts, global CSS
+  page.tsx                  home page (server component, live seat data)
+  not-found.tsx             friendly 404
+  invite/[code]/page.tsx    personal invitation page
+  admin/                    private reservations view
+  api/                      seat availability + reservation endpoints
+  components/               nav, hero, details + map, seat picker, direction, gift, QR
+  globals.css               Tailwind v4 theme tokens (cream/gold palette) + components
+lib/
+  wedding-config.ts         all editable wedding details (including map coordinates)
+  seating.ts                categories, tables, seat counts
+  db.ts                     SQLite connection + schema
+  reservations.ts           availability, atomic reserve, invite codes, CSV
+  validation.ts             server-side input validation
+  rate-limit.ts             simple in-memory rate limiting
+  email.ts                  Resend delivery (optional)
+  invite-message.ts         invitation subject/body/mailto (shared by server and browser)
+```
+
+## Verified behaviour
+
+- `npm run build` — clean production build, TypeScript passes.
+- `npx eslint .` — clean.
+- `POST /api/reservations` for an occupied seat returns `409` and fresh availability.
+- `/api/reservations` without the admin key returns `401`.
+- `/invite/<unknown-code>` renders the friendly "invitation not found" page.

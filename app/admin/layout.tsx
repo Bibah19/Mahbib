@@ -1,0 +1,10 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Seat reservations (private)",
+  robots: { index: false, follow: false },
+};
+
+export default function AdminLayout({ children }: LayoutProps<"/admin">) {
+  return children;
+}

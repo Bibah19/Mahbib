@@ -1,26 +1,1321 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================
+   DESIGN TOKENS: NAVY, EMERALD AND ASH
+   Deep navy carries the structure, emerald carries the action,
+   ash keeps the "Trads (Navy Blue & Ash)" dress code present in
+   the interface, and ivory keeps it bright and easy to read.
+   ============================================================ */
+@theme {
+  --color-ivory: #f7f9f8;
+  --color-ivory-deep: #eef3f4;
+  --color-navy-soft: #e6edf6;
+  --color-navy: #16375f;
+  --color-navy-deep: #0b2340;
+  --color-navy-night: #071a30;
+  --color-emerald-soft: #e2f4ee;
+  --color-emerald: #0a6b51;
+  --color-emerald-bright: #0e8f6b;
+  --color-emerald-deep: #075540;
+  --color-ash: #ccd5d8;
+  --color-ash-soft: #eef2f3;
+  --color-ink: #0f1b2d;
+  --color-muted: #55667a;
+  --color-success: #0a6b51;
+  --color-danger: #a33a3a;
+  --color-glass: rgba(255, 255, 255, 0.85);
+  --color-navy-border: rgba(22, 55, 95, 0.14);
+
+  --font-display: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
+
+  /* Legacy gold-era class names, kept as aliases so Tailwind classes that
+     still read `dark-gold`, `cream-deep`, `gold` or `gold-deep` keep working. */
+  --color-dark-gold: var(--color-navy-deep);
+  --color-gold: var(--color-emerald);
+  --color-gold-deep: var(--color-emerald-deep);
+  --color-cream-deep: var(--color-navy-soft);
+
+  --shadow-card: 0 26px 70px rgba(7, 26, 48, 0.16);
+  --shadow-soft: 0 16px 40px rgba(7, 26, 48, 0.12);
+  --shadow-lift: 0 22px 50px rgba(7, 26, 48, 0.24);
+  --shadow-seal: 0 18px 38px rgba(7, 26, 48, 0.42);
+
+  --radius-card: 34px;
+  --radius-panel: 24px;
+  --radius-pill: 999px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ============================================================
+   BASE
+   ============================================================ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 96px;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-display);
+    color: var(--color-ink);
+    background-color: var(--color-ivory);
+    background-image:
+      radial-gradient(circle at top left, rgba(10, 107, 81, 0.12), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(22, 55, 95, 0.16), transparent 32%),
+      linear-gradient(180deg, var(--color-ivory), var(--color-ivory-deep));
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: rgba(14, 143, 107, 0.26);
+  }
+
+  :focus-visible {
+    outline: 3px solid rgba(10, 107, 81, 0.55);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================
+   REUSABLE PIECES
+   ============================================================ */
+.shell {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: 22px;
+}
+
+.section-pad {
+  padding-block: 74px;
+}
+
+.glass-card {
+  background: var(--color-glass);
+  border: 1px solid rgba(22, 55, 95, 0.18);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(14px);
+  position: relative;
+  overflow: hidden;
+}
+
+.inset-frame::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(10, 107, 81, 0.3);
+  border-radius: calc(var(--radius-card) - 10px);
+  pointer-events: none;
+}
+
+.small-caps {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-emerald);
+  font-weight: 800;
+}
+
+.accent-rule {
+  width: 150px;
+  height: 1px;
+  margin-inline: auto;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-navy) 35%,
+    var(--color-emerald-bright) 65%,
+    transparent
+  );
+}
+
+/* Legacy gold-era divider used across older page markup; navy/emerald version. */
+.gold-rule {
+  width: min(430px, 82%);
+  height: 2px;
+  margin-inline: auto;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--color-emerald), transparent);
+}
+
+.display-title {
+  font-weight: 500;
+  line-height: 1.08;
+  color: var(--color-navy-deep);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(22, 55, 95, 0.2);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--color-navy);
+  backdrop-filter: blur(8px);
+}
+
+/* Buttons ---------------------------------------------------- */
+.btn {
+  border: 0;
+  border-radius: 18px;
+  padding: 15px 22px;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-emerald-bright), var(--color-emerald));
+  color: #fff;
+  box-shadow: var(--shadow-lift);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-emerald), var(--color-emerald-deep));
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--color-navy);
+  border: 1px solid rgba(22, 55, 95, 0.24);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #fff;
+  border-color: var(--color-navy);
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  background: rgba(247, 249, 248, 0.92);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(22, 55, 95, 0.12);
+}
+
+.nav-link {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-navy);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--color-emerald);
+}
+
+.nav-link::after {
+  content: "";
+  display: block;
+  height: 2px;
+  width: 0;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-navy), var(--color-emerald-bright));
+  transition: width 0.25s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+.mobile-menu-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease;
+  border-top: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.97);
+}
+
+.mobile-menu-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+  border-top-color: rgba(22, 55, 95, 0.12);
+}
+
+.mobile-menu-panel > div {
+  overflow: hidden;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero {
+  position: relative;
+  min-height: min(94vh, 900px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-color: var(--color-navy-night);
+}
+
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(7, 26, 48, 0.86) 0%,
+      rgba(11, 35, 64, 0.55) 42%,
+      rgba(247, 249, 248, 0.92) 100%
+    );
+}
+
+@media (max-width: 900px) {
+  .hero-scrim {
+    background: linear-gradient(180deg, rgba(7, 26, 48, 0.62), rgba(247, 249, 248, 0.96));
+  }
+}
+
+.hero-fallback {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 22% 22%, rgba(14, 143, 107, 0.62), transparent 46%),
+    radial-gradient(circle at 78% 72%, rgba(22, 55, 95, 0.85), transparent 52%),
+    linear-gradient(140deg, var(--color-navy-night), var(--color-navy) 45%, var(--color-emerald));
+}
+
+.names {
+  font-size: clamp(42px, 7vw, 78px);
+  line-height: 1.06;
+  font-weight: 500;
+  color: var(--color-navy-deep);
+}
+
+.amp {
+  display: block;
+  font-size: clamp(44px, 6vw, 70px);
+  font-style: italic;
+  color: var(--color-emerald);
+  margin: 6px 0;
+}
+
+.hero-subtitle {
+  max-width: 460px;
+  margin: 24px auto 0;
+  color: var(--color-muted);
+  font-size: 22px;
+  line-height: 1.55;
+  font-style: italic;
+}
+
+/* ============================================================
+   INFO PIECES
+   ============================================================ */
+.summary-panel {
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(230, 237, 246, 0.7));
+  border: 1px solid rgba(22, 55, 95, 0.16);
+  padding: 22px;
+}
+
+.quick-item,
+.detail-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 14px;
+  align-items: start;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(22, 55, 95, 0.12);
+  padding: 15px;
+}
+
+.icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(10, 107, 81, 0.4);
+  color: var(--color-emerald-deep);
+  background: var(--color-emerald-soft);
+  font-family: var(--font-sans);
+  font-weight: 900;
+}
+
+.note {
+  border-left: 4px solid var(--color-emerald);
+  background: linear-gradient(90deg, rgba(226, 244, 238, 0.9), rgba(255, 255, 255, 0.6));
+  padding: 14px 16px;
+  border-radius: 16px;
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  line-height: 1.65;
+  font-size: 14px;
+}
+
+/* ============================================================
+   FORMS AND THE SEAT PICKER
+   ============================================================ */
+.form-card {
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(22, 55, 95, 0.14);
+  padding: 26px;
+}
+
+.field-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-navy);
+  font-weight: 900;
+}
+
+.text-input,
+.select-input {
+  width: 100%;
+  border: 1px solid rgba(22, 55, 95, 0.2);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  padding: 14px 15px;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.select-input {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-emerald) 50%),
+    linear-gradient(135deg, var(--color-emerald) 50%, transparent 50%);
+  background-position:
+    calc(100% - 22px) calc(50% - 2px),
+    calc(100% - 16px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 44px;
+}
+
+.text-input:focus,
+.select-input:focus {
+  border-color: var(--color-emerald);
+  box-shadow: 0 0 0 4px rgba(10, 107, 81, 0.14);
+}
+
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.availability-panel {
+  border-radius: 22px;
+  border: 1px solid rgba(10, 107, 81, 0.2);
+  background: linear-gradient(180deg, rgba(226, 244, 238, 0.75), rgba(255, 255, 255, 0.75));
+  padding: 16px;
+  font-family: var(--font-sans);
+}
+
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .seat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.seat-btn {
+  border: 1px solid rgba(10, 107, 81, 0.4);
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 14px;
+  min-height: 60px;
+  padding: 8px;
+  color: var(--color-emerald-deep);
+  font-family: var(--font-sans);
+  font-weight: 900;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  line-height: 1.25;
+  transition:
+    transform 0.15s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.seat-btn small {
+  display: block;
+  font-weight: 800;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-emerald);
+}
+
+.seat-btn:hover:not(:disabled) {
+  background: var(--color-emerald-soft);
+  border-color: var(--color-emerald);
+  transform: translateY(-1px);
+}
+
+.seat-btn-selected {
+  background: linear-gradient(150deg, var(--color-navy), var(--color-navy-deep));
+  border-color: var(--color-navy-deep);
+  color: #fff;
+}
+
+.seat-btn-selected small {
+  color: var(--color-emerald-soft);
+}
+
+.seat-btn-occupied {
+  background: var(--color-ash-soft);
+  border-color: rgba(85, 102, 122, 0.3);
+  color: var(--color-muted);
+  cursor: not-allowed;
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+.seat-btn-occupied small {
+  color: var(--color-danger);
+  text-decoration: none;
+}
+
+.status-box {
+  border-radius: 22px;
+  border: 1px solid rgba(22, 55, 95, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 18px;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.status-box-success {
+  border-color: rgba(10, 107, 81, 0.35);
+  background: linear-gradient(180deg, rgba(226, 244, 238, 0.95), rgba(255, 255, 255, 0.9));
+}
+
+.status-box-error {
+  border-color: rgba(163, 58, 58, 0.35);
+  background: rgba(255, 235, 235, 0.85);
+}
+
+.account-number-card {
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(22, 55, 95, 0.14);
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.account-number {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-sans);
+  font-size: 27px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--color-navy-deep);
+}
+
+/* ============================================================
+   QR CARDS
+   ============================================================ */
+.qr-card {
+  border-radius: 26px;
+  border: 1px solid rgba(10, 107, 81, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 16px;
+  text-align: center;
+}
+
+.qr-card svg,
+.qr-card img {
+  width: 100%;
+  max-width: 190px;
+  height: auto;
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px;
+  border: 1px solid rgba(22, 55, 95, 0.12);
+}
+
+.qr-card p {
+  margin: 12px 0 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.17em;
+  color: var(--color-navy);
+  font-weight: 900;
+}
+
+/* ============================================================
+   REAL MAP (Leaflet + OpenStreetMap)
+   ============================================================ */
+.map-frame {
+  position: relative;
+  min-height: 410px;
+  border-radius: 30px;
+  border: 1px solid rgba(22, 55, 95, 0.2);
+  background: var(--color-ash-soft);
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Soften the tiles so the light basemap sits calmly under the navy frame. */
+.map-frame .leaflet-tile-pane {
+  filter: saturate(0.92) contrast(1.03) brightness(1.01);
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--color-ash-soft);
+}
+
+.leaflet-control-attribution {
+  background: rgba(247, 249, 248, 0.9) !important;
+  color: var(--color-muted) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border-radius: 8px 0 0 0;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-navy) !important;
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  color: var(--color-navy);
+  border-bottom-color: rgba(22, 55, 95, 0.18);
+}
+
+.leaflet-bar a:hover {
+  background: var(--color-emerald-soft);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 20px;
+  border: 1px solid rgba(22, 55, 95, 0.2);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-ink);
+}
+
+.leaflet-popup-content {
+  margin: 16px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.leaflet-popup-tip {
+  border: 1px solid rgba(22, 55, 95, 0.2);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.venue-marker-wrap {
+  background: transparent;
+  border: 0;
+}
+
+.venue-marker {
+  display: block;
+  position: relative;
+  width: 46px;
+  height: 46px;
+  background: linear-gradient(150deg, var(--color-emerald-bright), var(--color-emerald-deep));
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: var(--shadow-seal);
+}
+
+.venue-marker::after {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: 13px;
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+}
+
+.venue-marker-pulse {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 62px;
+  height: 20px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(10, 107, 81, 0.3);
+  animation: venue-pulse 2.8s ease-out infinite;
+}
+
+@keyframes venue-pulse {
+  0% {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0.75;
+  }
+  70% {
+    transform: translateX(-50%) scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.map-overlay {
+  position: absolute;
+  z-index: 500;
+  left: 16px;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.map-overlay > * {
+  pointer-events: auto;
+}
+
+.map-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+  gap: 12px;
+  background:
+    repeating-linear-gradient(45deg, rgba(22, 55, 95, 0.05) 0 12px, transparent 12px 24px),
+    linear-gradient(160deg, rgba(230, 237, 246, 0.9), rgba(226, 244, 238, 0.9));
+}
+
+/* ============================================================
+   FOOTER AND DECORATION
+   ============================================================ */
+.site-footer {
+  text-align: center;
+  padding: 44px 22px 70px;
+}
+
+.site-footer p {
+  margin: 22px 0 0;
+  color: var(--color-navy-deep);
+  font-size: clamp(22px, 3vw, 30px);
+  font-style: italic;
+}
+
+.reveal {
+  animation: reveal-up 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.reveal-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.reveal-delay-2 {
+  animation-delay: 0.24s;
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Legacy gold-era divider used across pages; navy and emerald version. */
+.legacy-gold-rule-note {
+  display: none;
+}
+
+/* ============================================================
+   ENVELOPE INTRO
+   The first thing a guest sees: a sealed navy envelope with an
+   emerald wax seal. Pressing the seal swings the flap open, the
+   invitation card rises out, then the overlay fades away and the
+   website is revealed.
+   ============================================================ */
+.envelope-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(14, 143, 107, 0.38), transparent 55%),
+    radial-gradient(circle at 50% 110%, rgba(22, 55, 95, 0.7), transparent 62%),
+    linear-gradient(180deg, var(--color-navy-night), #04101c);
+  transition: opacity 0.65s ease;
+}
+
+.envelope-intro[data-state="done"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.envelope-stage {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.envelope-eyebrow {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-ash);
+}
+
+.envelope-ask {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* "You Are Invited" beneath the envelope and its wax seal. */
+.envelope-invited {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 4.2vw, 30px);
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-ivory);
+  text-shadow:
+    0 0 18px rgba(14, 143, 107, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.envelope-invited::before,
+.envelope-invited::after {
+  content: "";
+  width: 74px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-emerald-bright) 50%,
+    transparent
+  );
+}
+
+.envelope-names {
+  margin: 0;
+  font-size: clamp(30px, 6vw, 46px);
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.envelope-date {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* A flat, frontal view of a real paper envelope. The gentle bob is the
+   only motion while it stays sealed. */
+.envelope-scene {
+  position: relative;
+  width: min(460px, 90vw);
+  padding-bottom: 22px;
+  perspective: 1400px;
+  perspective-origin: 50% 0%;
+  animation: envelope-float 6s ease-in-out infinite;
+}
+
+/* A soft shadow on the table beneath the envelope. */
+.envelope-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 78%;
+  height: 20px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.5),
+    rgba(0, 0, 0, 0.24) 55%,
+    transparent 78%
+  );
+  filter: blur(5px);
+  animation: envelope-shadow-breathe 6s ease-in-out infinite;
+}
+
+/* No tilt, no rotation: the sealed envelope faces you dead-on, exactly
+   like the back of a real envelope. Every fold meets at ONE apex at 50%
+   of the height, and the wax seal sits on that apex. */
+.envelope {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  --paper-grain: repeating-linear-gradient(
+    115deg,
+    rgba(120, 96, 50, 0.05) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+/* The back panel: the inside of the envelope, soft ivory card under a
+   gentle vignette, like paper under a lamp. */
+.envelope-back {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 10px;
+  background:
+    var(--paper-grain),
+    radial-gradient(
+      130% 100% at 50% 0%,
+      #faf5e7 0%,
+      #f3ebd6 55%,
+      #e8dcc0 100%
+    );
+  border: 1px solid rgba(120, 96, 50, 0.4);
+  box-shadow:
+    inset 0 0 44px rgba(120, 96, 50, 0.14),
+    0 1px 2px rgba(70, 55, 25, 0.25);
+}
+
+/* The invitation card sits BEHIND the back panel: genuinely invisible
+   while sealed, and it rises out of the mouth when the flap opens. */
+.envelope-card {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  bottom: 12%;
+  z-index: 0;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 18px 16px 26px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff, #f6efdd);
+  border: 1px solid rgba(120, 96, 50, 0.35);
+  box-shadow: 0 10px 26px rgba(20, 14, 4, 0.4);
+  transition: transform 1s cubic-bezier(0.22, 0.61, 0.36, 1) 0.25s;
+}
+
+.envelope-card strong {
+  font-size: clamp(18px, 3.4vw, 24px);
+  font-weight: 500;
+  color: var(--color-navy-deep);
+}
+
+.envelope-card span {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-emerald);
+  font-weight: 800;
+}
+
+/* The three folds of the envelope back, all meeting at the apex at 50%.
+   The bottom fold is the top layer, like on a real envelope. */
+
+/* Left fold. */
+.envelope-fold-left {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  clip-path: polygon(0 0, 50% 50%, 0 100%);
+  background:
+    var(--paper-grain),
+    linear-gradient(105deg, #f7efdc 0%, #eee3c8 100%);
+  filter: drop-shadow(2px 0 2px rgba(120, 96, 50, 0.3));
+}
+
+/* Right fold. */
+.envelope-fold-right {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  clip-path: polygon(100% 0, 50% 50%, 100% 100%);
+  background:
+    var(--paper-grain),
+    linear-gradient(255deg, #f6eeda 0%, #ebdfc2 100%);
+  filter: drop-shadow(-2px 0 2px rgba(120, 96, 50, 0.3));
+}
+
+/* Bottom fold, layered over both side folds. */
+.envelope-fold-bottom {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  clip-path: polygon(0 100%, 50% 50%, 100% 100%);
+  background:
+    var(--paper-grain),
+    linear-gradient(180deg, #f3ead4 0%, #e7dabb 100%);
+  filter: drop-shadow(0 -2px 2px rgba(120, 96, 50, 0.32));
+}
+
+/* The closure flap hangs from the top edge, tip at the apex. Its inside
+   is a patterned liner, revealed as it flips open. The flap casts a soft
+   shadow onto the folds below it while closed. */
+.envelope-flap-shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform: translateY(3px);
+  background: linear-gradient(180deg, rgba(70, 55, 25, 0.22), transparent 82%);
+  transition: opacity 0.6s ease 0.4s;
+}
+
+.envelope-flap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 50%;
+  z-index: 5;
+  transform-origin: top center;
+  transform-style: preserve-3d;
+  transition: transform 0.9s cubic-bezier(0.4, 0.02, 0.3, 1);
+}
+
+/* Both faces share the triangular clip and hide their own backface, so
+   exactly one of them shows at a time. */
+.envelope-flap-face {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  backface-visibility: hidden;
+}
+
+/* Front of the flap: ivory paper, top-lit. */
+.envelope-flap-face--front {
+  background:
+    var(--paper-grain),
+    linear-gradient(180deg, #fcf7ea 0%, #f4ecd7 55%, #ecdfc4 100%);
+  box-shadow: inset 0 -6px 14px rgba(120, 96, 50, 0.2);
+}
+
+/* Liner (the inside of the flap): deep navy with an emerald weave. */
+.envelope-flap-face--liner {
+  transform: rotateX(180deg);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(14, 143, 107, 0.32) 0 3px,
+      transparent 3px 12px
+    ),
+    linear-gradient(180deg, #123055, var(--color-navy-night));
+  border-bottom: 2px solid rgba(14, 143, 107, 0.5);
+}
+
+/* A light sheen that sweeps along the flap while it opens. */
+.envelope-flap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.5), transparent 45%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Poured wax: an irregular blob with an embossed ring, a debossed
+   monogram and a specular glint. It sits exactly on the apex where the
+   flap, the folds and the wax meet on a real envelope. */
+.envelope-seal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  width: clamp(78px, 20vw, 104px);
+  aspect-ratio: 1;
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  border-radius: 47% 53% 51% 49% / 52% 48% 54% 46%;
+  background:
+    radial-gradient(
+      circle at 32% 26%,
+      rgba(255, 255, 255, 0.42),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 50% 62%,
+      var(--color-emerald-deep),
+      var(--color-emerald-deep) 58%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle at 34% 30%,
+      var(--color-emerald-bright),
+      var(--color-emerald) 52%,
+      var(--color-emerald-deep) 88%
+    );
+  box-shadow:
+    0 10px 22px rgba(20, 14, 4, 0.45),
+    inset 0 3px 6px rgba(255, 255, 255, 0.3),
+    inset 0 -6px 12px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 4px rgba(7, 85, 64, 0.55),
+    inset 0 0 0 7px rgba(255, 255, 255, 0.16),
+    14px 16px 0 -12px rgba(10, 107, 81, 0.85);
+  transition:
+    transform 0.35s ease,
+    opacity 0.45s ease,
+    box-shadow 0.35s ease,
+    filter 0.35s ease;
+}
+
+.envelope-seal::before {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border-radius: 46% 54% 50% 50% / 54% 46% 54% 46%;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.28),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Tiny specular glint on the wax. */
+.envelope-seal::after {
+  content: "";
+  position: absolute;
+  top: 16%;
+  left: 20%;
+  width: 18%;
+  height: 12%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.6),
+    transparent 70%
+  );
+  filter: blur(1px);
+}
+
+.envelope-seal:hover {
+  transform: translate(-50%, -50%) scale(1.05) rotate(-1.5deg);
+  filter: brightness(1.08);
+  box-shadow:
+    0 10px 22px rgba(20, 14, 4, 0.45),
+    0 0 0 10px rgba(14, 143, 107, 0.2),
+    inset 0 3px 6px rgba(255, 255, 255, 0.34),
+    inset 0 -6px 12px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 4px rgba(7, 85, 64, 0.55),
+    inset 0 0 0 7px rgba(255, 255, 255, 0.18),
+    14px 16px 0 -12px rgba(10, 107, 81, 0.85);
+}
+
+.envelope-seal-mono {
+  font-family: var(--font-display);
+  font-size: clamp(21px, 5.4vw, 29px);
+  font-style: italic;
+  /* Debossed: light below, dark above, like the letters are pressed in. */
+  text-shadow:
+    0 1px 1px rgba(255, 255, 255, 0.35),
+    0 -1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* Opened state: the flap flips up (liner showing), its shadow fades,
+   and the card rises out of the envelope mouth. */
+.envelope-intro[data-state="opening"] .envelope-flap,
+.envelope-intro[data-state="done"] .envelope-flap {
+  transform: rotateX(178deg);
+}
+
+.envelope-intro[data-state="opening"] .envelope-flap-shadow,
+.envelope-intro[data-state="done"] .envelope-flap-shadow {
+  opacity: 0;
+}
+
+/* The scene stops floating and the shadow settles while it opens. */
+.envelope-intro[data-state="opening"] .envelope-scene,
+.envelope-intro[data-state="done"] .envelope-scene {
+  animation: none;
+}
+
+.envelope-intro[data-state="opening"] .envelope-shadow,
+.envelope-intro[data-state="done"] .envelope-shadow {
+  animation: none;
+  opacity: 0.7;
+}
+
+/* Sheen sweeps along the flap as it lifts. */
+.envelope-intro[data-state="opening"] .envelope-flap::after {
+  opacity: 1;
+  animation: envelope-sheen 0.9s ease 0.05s;
+}
+
+.envelope-intro[data-state="opening"] .envelope-seal,
+.envelope-intro[data-state="done"] .envelope-seal {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1.4) rotate(6deg);
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.envelope-intro[data-state="opening"] .envelope-card,
+.envelope-intro[data-state="done"] .envelope-card {
+  transform: translateY(-64%);
+}
+
+.envelope-intro[data-state="opening"] .envelope-invited,
+.envelope-intro[data-state="done"] .envelope-invited {
+  opacity: 0.25;
+  transition: opacity 0.6s ease;
+}
+
+@keyframes envelope-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes envelope-shadow-breathe {
+  0%,
+  100% {
+    transform: translateX(-50%) scaleX(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateX(-50%) scaleX(0.86);
+    opacity: 0.34;
+  }
+}
+
+@keyframes envelope-sheen {
+  from {
+    transform: translateX(-55%);
+  }
+  to {
+    transform: translateX(55%);
+  }
+}
+
+@media (max-width: 640px) {
+  .envelope-card {
+    left: 6%;
+    right: 6%;
+    padding: 14px 12px;
+  }
+
+  .envelope-shadow {
+    height: 18px;
+  }
 }
