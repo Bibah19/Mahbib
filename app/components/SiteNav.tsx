@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { WEDDING_DETAILS } from "@/lib/wedding-config";
 
