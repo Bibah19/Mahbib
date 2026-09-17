@@ -12,6 +12,8 @@
  *   EMAIL_FROM="Weddings <invites@yourdomain.com>"   (must be a verified sender)
  */
 
+import type { BookingDiagnostics } from "./booking-diagnostics";
+
 import {
   buildCancellationSubject,
   buildCancellationBody,
@@ -76,6 +78,7 @@ function buildInviteHtml(reservation: Reservation, inviteUrl: string): string {
 export async function sendInviteEmail(
   reservation: Reservation,
   inviteUrl: string,
+  diagnostics?: BookingDiagnostics,
 ): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
 
@@ -102,13 +105,15 @@ export async function sendInviteEmail(
 
     if (!response.ok) {
       const detail = await response.text();
-      console.error("Resend rejected the invitation email:", response.status, detail);
+      if (diagnostics) diagnostics.log("error", "email_rejected", new Error(detail), response.status);
+      else console.error("Resend rejected the invitation email:", response.status);
       return { status: "failed", message: "The invitation email could not be sent." };
     }
 
         return { status: "sent", message: "Invitation email sent." };
   } catch (error) {
-    console.error("Invitation email failed:", error);
+    if (diagnostics) diagnostics.log("error", "email_failed", error);
+    else console.error("Invitation email failed.");
     return { status: "failed", message: "The invitation email could not be sent." };
   }
 }

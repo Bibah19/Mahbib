@@ -315,15 +315,15 @@
   background:
     linear-gradient(
       90deg,
-      rgba(7, 26, 48, 0.86) 0%,
-      rgba(11, 35, 64, 0.55) 42%,
-      rgba(247, 249, 248, 0.92) 100%
+      rgba(7, 26, 48, 0.45) 0%,
+      rgba(11, 35, 64, 0.2) 42%,
+      rgba(247, 249, 248, 0.35) 100%
     );
 }
 
 @media (max-width: 900px) {
   .hero-scrim {
-    background: linear-gradient(180deg, rgba(7, 26, 48, 0.62), rgba(247, 249, 248, 0.96));
+    background: linear-gradient(180deg, rgba(7, 26, 48, 0.35), rgba(247, 249, 248, 0.45));
   }
 }
 

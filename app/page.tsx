@@ -1,6 +1,4 @@
 import EnvelopeIntro from "@/app/components/EnvelopeIntro";
-import { existsSync } from "node:fs";
-import path from "node:path";
 import Details from "@/app/components/Details";
 import DirectionSection from "@/app/components/DirectionSection";
 import Footer from "@/app/components/Footer";
@@ -12,15 +10,6 @@ import { isKnownTable, isValidSeat } from "@/lib/seating";
 
 /** The page reads live seat data, so it must render on every request. */
 export const dynamic = "force-dynamic";
-
-/** True when the couple's photo has been dropped into `public/couple.jpg`. */
-function hasCouplePhoto(): boolean {
-  try {
-    return existsSync(path.join(process.cwd(), "public", "couple.jpg"));
-  } catch {
-    return false;
-  }
-}
 
 type HomePageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -67,7 +56,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     <>
       <EnvelopeIntro />
       <SiteNav />
-      <Hero hasCouplePhoto={hasCouplePhoto()} summary={summary} reservedSeat={reservedSeat} />
+      <Hero summary={summary} reservedSeat={reservedSeat} />
       <main>
         <Details />
         <SeatReservation initialAvailability={availability} />

@@ -12,30 +12,24 @@ type ReservedSeatSummary = {
 };
 
 type HeroProps = {
-  /** True when `public/couple.jpg` exists; otherwise the gradient backdrop is used. */
-  hasCouplePhoto: boolean;
   summary: SeatSummary;
   reservedSeat: ReservedSeatSummary | null;
 };
 
-export default function Hero({ hasCouplePhoto, summary, reservedSeat }: HeroProps) {
+export default function Hero({ summary, reservedSeat }: HeroProps) {
   const couple = `${WEDDING_DETAILS.brideName} & ${WEDDING_DETAILS.groomName}`;
 
   return (
     <header id="invite" className="hero">
       <div className="hero-backdrop">
-        {hasCouplePhoto ? (
-          <Image
-            src="/couple.jpg"
-            alt={`${couple} on their wedding day`}
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover object-center"
-          />
-        ) : (
-          <div className="hero-fallback" />
-        )}
+        <Image
+          src="/img5678.png"
+          alt=""
+          fill
+          preload
+          sizes="100vw"
+          className="object-cover object-center"
+        />
         <div className="hero-scrim" />
       </div>
 

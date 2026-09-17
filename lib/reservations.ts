@@ -1,6 +1,8 @@
 /** Server-only private Blob persistence; one JSON object per physical seat. */
 import "server-only";
 import { randomBytes, randomInt } from "node:crypto";
+import type { BookingDiagnostics } from "./booking-diagnostics";
+
 import { list, get, put, del, BlobPreconditionFailedError, BlobNotFoundError } from "./storage";
 import { getCategories, getCategoryQuota, getTablesForCategory } from "./seating";
 import type {
@@ -239,17 +241,24 @@ export async function listReservations(): Promise<Reservation[]> {
  */
 export async function reserveSeat(
   input: ReserveSeatInput,
+  diagnostics?: BookingDiagnostics,
 ): Promise<ReserveSeatResult> {
+  diagnostics?.protect(input.name, input.email);
   const createdAt = new Date().toISOString();
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const inviteCode = createInviteCode();
+    diagnostics?.protect(inviteCode);
+    diagnostics?.step("invite_code_lookup");
 
     if (await getReservationByInviteCode(inviteCode) !== null) {
       continue;
     }
 
+    diagnostics?.step("seat_availability_check");
     if (!(await isSeatAvailable(input.table, input.seat))) {
+      diagnostics?.log("warn", "seat_occupied");
+      diagnostics?.step("conflict_availability");
       return {
         ok: false,
         conflict: true,
@@ -260,6 +269,7 @@ export async function reserveSeat(
 
     // Keep numeric IDs without a shared, non-atomic max-ID counter.
     const nextId = randomInt(1, 2 ** 48 - 1);
+    diagnostics?.step("reservation_id_lookup");
     if (await getReservationById(nextId) !== null) continue;
     const reservation: Reservation = {
       id: nextId,
@@ -273,6 +283,7 @@ export async function reserveSeat(
     };
 
     try {
+      diagnostics?.writeAttempted();
       await put(
         seatBlobPath(input.table, input.seat),
         JSON.stringify(reservation, null, 2),
@@ -284,10 +295,13 @@ export async function reserveSeat(
         },
       );
 
+      diagnostics?.writeConfirmed();
+      diagnostics?.step("reservation_read_back");
       const stored = await readReservationBlob(
         seatBlobPath(input.table, input.seat),
       );
       if (!stored) {
+        diagnostics?.log("error", "read_back_missing", new Error("Write succeeded but reservation read-back returned no record."), 500);
         return {
           ok: false,
           error: "The seat could not be saved. Please try again.",
@@ -301,7 +315,9 @@ export async function reserveSeat(
       };
     } catch (error) {
       if (isSeatConflictError(error)) {
+        diagnostics?.log("warn", "conflict_detected", error, 409);
         if (attempt < 4) continue;
+        diagnostics?.step("conflict_availability");
         return {
           ok: false,
           conflict: true,
@@ -313,6 +329,7 @@ export async function reserveSeat(
     }
   }
 
+  diagnostics?.log("error", "attempts_exhausted", undefined, 500);
   return {
     ok: false,
     error:

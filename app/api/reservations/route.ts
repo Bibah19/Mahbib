@@ -10,6 +10,8 @@
  * either as an `x-admin-key` header or a `key` query parameter.
  */
 
+import { BookingDiagnostics } from "@/lib/booking-diagnostics";
+
 import { sendCancellationEmail, sendInviteEmail } from "@/lib/email";
 import { checkRateLimit, getClientKey, pruneRateLimitBuckets } from "@/lib/rate-limit";
 import { getAvailability, listReservations, releaseSeat, reservationsToCsv, getReservationById, reserveSeat } from "@/lib/reservations";
@@ -45,6 +47,28 @@ function unauthorisedResponse(): Response {
 }
 
 export async function POST(request: Request) {
+  const diagnostics = new BookingDiagnostics();
+  try {
+    const response = await bookSeat(request, diagnostics);
+    const body = await response.json();
+    diagnostics.log(response.status >= 500 ? "error" : response.status >= 400 ? "warn" : "info", "response", undefined, response.status);
+    response.headers.set("x-request-id", diagnostics.requestId);
+    return Response.json({ ...body, requestId: diagnostics.requestId }, {
+      status: response.status,
+      headers: response.headers,
+    });
+  } catch (error) {
+    diagnostics.log("error", "unhandled_failure", error, 500);
+    return Response.json({
+      ok: false,
+      error: `We could not complete the booking response. Please contact the host before retrying. Reference: ${diagnostics.requestId}`,
+      requestId: diagnostics.requestId,
+    }, { status: 500, headers: { "x-request-id": diagnostics.requestId } });
+  }
+}
+
+async function bookSeat(request: Request, diagnostics: BookingDiagnostics) {
+  diagnostics.step("rate_limit");
   pruneRateLimitBuckets();
 
   const limit = checkRateLimit(getClientKey(request));
@@ -59,6 +83,7 @@ export async function POST(request: Request) {
   }
 
   let raw: unknown;
+  diagnostics.step("parse_request");
   try {
     raw = await request.json();
   } catch {
@@ -68,15 +93,22 @@ export async function POST(request: Request) {
     );
   }
 
+  diagnostics.step("validation");
+  if (typeof raw === "object" && raw !== null) {
+    for (const value of Object.values(raw)) {
+      if (typeof value === "string") diagnostics.protect(value);
+    }
+  }
   const validation = validateReservationPayload(raw);
   if (!validation.ok) {
+    diagnostics.step("invalid_payload_availability");
     return Response.json(
       { ok: false, error: validation.error, availability: await getAvailability() },
       { status: 400 },
     );
   }
 
-  const result = await reserveSeat(validation.value);
+  const result = await reserveSeat(validation.value, diagnostics);
 
   if (!result.ok) {
     return Response.json(
@@ -85,8 +117,14 @@ export async function POST(request: Request) {
     );
   }
 
+  diagnostics.step("invite_url");
   const inviteUrl = new URL(result.invitePath, new URL(request.url).origin).toString();
-  const email = await sendInviteEmail(result.reservation, inviteUrl);
+  diagnostics.step("email");
+  const email = await sendInviteEmail(result.reservation, inviteUrl, diagnostics);
+  diagnostics.log(email.status === "failed" ? "warn" : "info", `email_${email.status}`);
+  diagnostics.step("response_availability");
+  const availability = await getAvailability();
+  diagnostics.step("response_serialization");
 
   return Response.json(
     {
@@ -95,7 +133,7 @@ export async function POST(request: Request) {
       invitePath: result.invitePath,
       inviteUrl,
       email,
-      availability: await getAvailability(),
+      availability,
     },
     { status: 201 },
   );
