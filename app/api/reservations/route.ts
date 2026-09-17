@@ -10,15 +10,9 @@
  * either as an `x-admin-key` header or a `key` query parameter.
  */
 
-import { sendInviteEmail } from "@/lib/email";
+import { sendCancellationEmail, sendInviteEmail } from "@/lib/email";
 import { checkRateLimit, getClientKey, pruneRateLimitBuckets } from "@/lib/rate-limit";
-import {
-  getAvailability,
-  listReservations,
-  releaseSeat,
-  reservationsToCsv,
-  reserveSeat,
-} from "@/lib/reservations";
+import { getAvailability, listReservations, releaseSeat, reservationsToCsv, getReservationById, reserveSeat } from "@/lib/reservations";
 import { parseId, validateReservationPayload } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -77,12 +71,12 @@ export async function POST(request: Request) {
   const validation = validateReservationPayload(raw);
   if (!validation.ok) {
     return Response.json(
-      { ok: false, error: validation.error, availability: getAvailability() },
+      { ok: false, error: validation.error, availability: await getAvailability() },
       { status: 400 },
     );
   }
 
-  const result = reserveSeat(validation.value);
+  const result = await reserveSeat(validation.value);
 
   if (!result.ok) {
     return Response.json(
@@ -101,7 +95,7 @@ export async function POST(request: Request) {
       invitePath: result.invitePath,
       inviteUrl,
       email,
-      availability: getAvailability(),
+      availability: await getAvailability(),
     },
     { status: 201 },
   );
@@ -110,7 +104,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   if (!isAuthorised(request)) return unauthorisedResponse();
 
-  const reservations = listReservations();
+  const reservations = await listReservations();
   const format = new URL(request.url).searchParams.get("format");
 
   if (format === "csv") {
@@ -124,7 +118,7 @@ export async function GET(request: Request) {
   }
 
   return Response.json(
-    { ok: true, reservations, availability: getAvailability() },
+    { ok: true, reservations: await listReservations(), availability: await getAvailability() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -132,19 +126,33 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   if (!isAuthorised(request)) return unauthorisedResponse();
 
-  const id = parseId(new URL(request.url).searchParams.get("id"));
+    const id = parseId(new URL(request.url).searchParams.get("id"));
   if (id === null) {
     return Response.json({ ok: false, error: "A valid reservation id is required." }, { status: 400 });
   }
 
-  const released = releaseSeat(id);
+  const reservation = await getReservationById(id);
+
+  if (reservation) {
+    const email = await sendCancellationEmail(reservation);
+    const released = await releaseSeat(id);
+    return Response.json(
+      {
+        ok: released,
+        error: released ? undefined : "That reservation no longer exists.",
+        email,
+        availability: await getAvailability(),
+      },
+      { status: released ? 200 : 404 },
+    );
+  }
 
   return Response.json(
     {
-      ok: released,
-      error: released ? undefined : "That reservation no longer exists.",
-      availability: getAvailability(),
+      ok: false,
+      error: "That reservation no longer exists.",
+      availability: await getAvailability(),
     },
-    { status: released ? 200 : 404 },
+    { status: 404 },
   );
 }

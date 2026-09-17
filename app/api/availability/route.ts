@@ -11,12 +11,12 @@ import { getAvailability, getSeatSummary } from "@/lib/reservations";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const availability = getAvailability();
+  const availability = await getAvailability();
 
   return Response.json(
     {
       ...availability,
-      summary: getSeatSummary(),
+      summary: await getSeatSummary(),
     },
     {
       headers: {

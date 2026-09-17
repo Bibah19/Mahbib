@@ -4,7 +4,7 @@ A modern wedding invitation website where every guest can see the **real venue o
 interactive map** and **reserve a seat that nobody else can take**.
 
 Next.js (App Router) serves both the frontend and the backend: React Server Components render
-the invitation, Route Handlers expose the seat API, and a SQLite database stores the
+the invitation, Route Handlers expose the seat API, and private Vercel Blob storage stores the
 reservations. The original single-file design lives in `../index.html` and is kept as the
 visual reference.
 
@@ -70,16 +70,42 @@ grid and the server-side validation.
 
 ## Data storage
 
-Reservations are stored in SQLite through Node's built-in `node:sqlite` (no extra package, no
-native build) at `data/wedding.db`, which is gitignored. The table has
-`UNIQUE (category, table_name, seat)` — that constraint is what makes duplicate seats impossible,
-even when two guests submit at the same instant. The second request gets a `409` and a freshly
+In production, reservations are stored in **private Vercel Blob** as one JSON file per
+reservation, for example `reservations/Table%201/3.json`. Production requires Blob
+credentials and does not write reservations to the hosting filesystem.
+
+During `npm run dev`, when Blob credentials are absent, the storage adapter saves
+reservations under `data/blob-local/` instead. These gitignored files persist across
+local restarts, are separate from production data, and do not import the legacy SQLite
+database automatically. Local create-only writes publish a complete file atomically,
+so simultaneous requests cannot overwrite an occupied seat. To use Vercel data locally,
+set `BLOB_READ_WRITE_TOKEN` in `.env.local` and restart the development server.
+
+The seat identity is the blob path
+itself (`reservations/<table>/<seat>.json`), so two guests can never hold the same chair:
+the second `PUT` gets a precondition failure and the guest sees a `409` with a freshly
 painted seat map.
 
-To move the database somewhere else, set `WEDDING_DB_PATH`. To deploy on a platform with an
-ephemeral filesystem (for example Vercel), point that variable at a persistent volume or replace
-[`lib/db.ts`](lib/db.ts) with a hosted Postgres/Supabase client — the rest of the app only talks
-to [`lib/reservations.ts`](lib/reservations.ts).
+Every blob is created with `access: "private"`, so the storage is not publicly reachable.
+Reads that must reflect a just-written blob use `useCache: false` (no stale cache). The app
+does not use `/tmp` for persistent guest data.
+
+Existing numeric reservation IDs are preserved. New IDs are random safe integers rather
+than sequential counters; the seat blobs are the source of truth for ID lookups and
+releases. Legacy counter and ID-map blobs are ignored. Reservations are listed newest
+first by creation time, not by ID. Random ID collisions are checked against stored
+reservations, but this is not a transactional global uniqueness guarantee.
+
+Run the isolated storage regression tests with
+`node --test scripts/reservations.test.cjs scripts/storage.test.cjs`.
+These tests use in-memory storage and temporary local files; they do not access live guest data.
+
+The storage layer lives in [`lib/reservations.ts`](lib/reservations.ts). All other parts of
+the app — API routes, pages, components — talk only to that file, so the backend is a single
+replaceable module.
+
+To deploy on Vercel, enable **Blob** in the project (Vercel provisions a `BLOB_READ_WRITE_TOKEN`
+automatically and injects it into serverless functions). No `WEDDING_DB_PATH` is needed anymore.
 
 ## Environment variables
 
@@ -89,7 +115,6 @@ Copy `.env.example` to `.env.local`:
 RESEND_API_KEY=          # optional: send invitation emails automatically
 EMAIL_FROM="Weddings <invites@yourdomain.com>"
 ADMIN_KEY=               # protects /admin and the admin API
-WEDDING_DB_PATH=         # optional: custom SQLite path
 ```
 
 Without `RESEND_API_KEY` nothing breaks: the guest sees the confirmation on screen and can use
@@ -110,8 +135,7 @@ app/
 lib/
   wedding-config.ts         all editable wedding details (including map coordinates)
   seating.ts                categories, tables, seat counts
-  db.ts                     SQLite connection + schema
-  reservations.ts           availability, atomic reserve, invite codes, CSV
+  reservations.ts           availability, atomic reserve, invite codes, CSV (Vercel Blob backend)
   validation.ts             server-side input validation
   rate-limit.ts             simple in-memory rate limiting
   email.ts                  Resend delivery (optional)

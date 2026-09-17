@@ -95,14 +95,22 @@ export default function AdminPage() {
           method: "DELETE",
           headers: { "x-admin-key": adminKey.trim() },
         });
-        const data = (await response.json()) as { ok: boolean; error?: string };
+                const data = (await response.json()) as {
+          ok: boolean;
+          error?: string;
+          email?: { status: "sent" | "skipped" | "failed"; message: string };
+        };
 
         if (!response.ok || !data.ok) {
           setMessage(data.error ?? "The seat could not be released.");
           return;
         }
 
-        setMessage("Seat released.");
+        setMessage(
+          data.email?.status === "sent"
+            ? "Seat released. Cancellation email sent."
+            : "Seat released. Cancellation email not sent.",
+        );
         await load(adminKey);
       } catch {
         setMessage("Network problem while releasing the seat.");

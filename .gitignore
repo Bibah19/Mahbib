@@ -35,7 +35,7 @@ yarn-error.log*
 # ...but always keep the documented template in git
 !.env.example
 
-# wedding seat database (SQLite + its write-ahead log)
+# Local reservation files and legacy SQLite database (including write-ahead logs)
 /data/
 
 # vercel

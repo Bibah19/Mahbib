@@ -1,19 +1,8 @@
-/**
- * Data access for seat reservations.
- *
- * Everything the rest of the app needs lives here: availability for the seat
- * picker, the atomic "reserve this seat" mutation, personal invite codes, an
- * admin list and CSV export.
- */
-
-import { randomBytes } from "node:crypto";
-import { getDb, isUniqueConstraintError } from "./db";
-import {
-  getCategories,
-  getCategoryQuota,
-  getTablesForCategory,
-  getTotalSeats,
-} from "./seating";
+/** Server-only private Blob persistence; one JSON object per physical seat. */
+import "server-only";
+import { randomBytes, randomInt } from "node:crypto";
+import { list, get, put, del, BlobPreconditionFailedError, BlobNotFoundError } from "./storage";
+import { getCategories, getCategoryQuota, getTablesForCategory } from "./seating";
 import type {
   Availability,
   AvailabilityCategory,
@@ -23,34 +12,38 @@ import type {
   ReserveSeatResult,
 } from "./types";
 
-type ReservationRow = {
-  id: number | bigint;
-  invite_code: string;
-  name: string;
-  email: string;
-  category: string;
-  table_name: string;
-  seat: number | bigint;
-  created_at: string;
-};
-
-const RESERVATION_COLUMNS =
-  "id, invite_code, name, email, category, table_name, seat, created_at";
-
-function mapReservation(row: ReservationRow): Reservation {
-  return {
-    id: Number(row.id),
-    inviteCode: row.invite_code,
-    name: row.name,
-    email: row.email,
-    category: row.category,
-    table: row.table_name,
-    seat: Number(row.seat),
-    createdAt: row.created_at,
-  };
+function seatBlobPath(table: string, seat: number): string {
+  return `reservations/${encodeURIComponent(table.trim())}/${seat}.json`;
 }
 
-/** `/invite/ABCD1234`, the personal link each guest receives. */
+const SEAT_PREFIX = "reservations/";
+// Ignore metadata left by an earlier implementation; never read or write it.
+const COUNTER_BLOB = "reservations/_meta/counter.json";
+const ID_MAP_BLOB = "reservations/_meta/id-map.json";
+
+async function streamToText(stream: ReadableStream<Uint8Array>): Promise<string> {
+  return new Response(stream).text();
+}
+
+async function reservationBlobExists(table: string, seat: number): Promise<boolean> {
+  return (await readReservationBlob(seatBlobPath(table, seat))) !== null;
+}
+
+async function readReservationBlob(pathname: string): Promise<Reservation | null> {
+  try {
+    const result = await get(pathname, {
+      access: "private",
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200) return null;
+    const text = await streamToText(result.stream);
+    return JSON.parse(text) as Reservation;
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) return null;
+    throw error;
+  }
+}
+
 export function buildInvitePath(inviteCode: string): string {
   return `/invite/${inviteCode}`;
 }
@@ -66,29 +59,42 @@ function createInviteCode(): string {
   return code;
 }
 
-/** Occupied seat numbers on one physical table for the live seat map. */
-function readOccupiedSeats(): Map<string, Set<number>> {
-  const rows = getDb()
-    .prepare("SELECT table_name, seat FROM reservations")
-    .all() as unknown as { table_name: string; seat: number | bigint }[];
+function mapReservation(raw: Reservation): Reservation {
+  return {
+    id: raw.id,
+    inviteCode: raw.inviteCode,
+    name: raw.name,
+    email: raw.email,
+    category: raw.category,
+    table: raw.table,
+    seat: raw.seat,
+    createdAt: raw.createdAt,
+  };
+}
 
+async function readOccupiedSeats(): Promise<Map<string, Set<number>>> {
   const occupied = new Map<string, Set<number>>();
-
-  for (const row of rows) {
-    const seats = occupied.get(row.table_name) ?? new Set<number>();
-    seats.add(Number(row.seat));
-    occupied.set(row.table_name, seats);
-  }
-
+  let cursor: string | undefined;
+  let page = await list({ prefix: SEAT_PREFIX, limit: 100, cursor });
+  do {
+    for (const blob of page.blobs) {
+      if (blob.pathname === COUNTER_BLOB || blob.pathname === ID_MAP_BLOB)
+        continue;
+      const reservation = await readReservationBlob(blob.pathname);
+      if (!reservation) continue;
+      const seats = occupied.get(reservation.table) ?? new Set<number>();
+      seats.add(reservation.seat);
+      occupied.set(reservation.table, seats);
+    }
+    cursor = page.cursor;
+    if (cursor)
+      page = await list({ prefix: SEAT_PREFIX, limit: 100, cursor });
+  } while (cursor);
   return occupied;
 }
 
-/** Full, real-time seat map used by the picker and by the API. */
-export function getAvailability(): Availability {
-  // Physical truth: one chair, one table, one seat number. Ranges handed to
-  // different categories never overlap, so filtering global occupancy to the
-  // range also equals that category's own bookings.
-  const occupiedByTable = readOccupiedSeats();
+export async function getAvailability(): Promise<Availability> {
+  const occupiedByTable = await readOccupiedSeats();
   let totalSeats = 0;
   let occupiedSeats = 0;
 
@@ -96,26 +102,26 @@ export function getAvailability(): Availability {
     let categorySeats = 0;
     let categoryOccupied = 0;
 
-    const tables: AvailabilityTable[] = getTablesForCategory(category).map((table) => {
-      const taken = Array.from(occupiedByTable.get(table.name) ?? [])
-        .filter((seat) => seat >= table.from && seat <= table.to)
-        .sort((a, b) => a - b);
+    const tables: AvailabilityTable[] = getTablesForCategory(category).map(
+      (table) => {
+        const taken = Array.from(occupiedByTable.get(table.name) ?? [])
+          .filter((seat) => seat >= table.from && seat <= table.to)
+          .sort((a, b) => a - b);
+        return {
+          name: table.name,
+          from: table.from,
+          to: table.to,
+          seatCount: table.seatCount,
+          occupied: taken,
+          availableCount: table.seatCount - taken.length,
+        };
+      },
+    );
 
-      categorySeats += table.seatCount;
-      categoryOccupied += taken.length;
-
-      return {
-        name: table.name,
-        from: table.from,
-        to: table.to,
-        seatCount: table.seatCount,
-        occupied: taken,
-        availableCount: table.seatCount - taken.length,
-      };
-    });
-
-    totalSeats += categorySeats;
-    occupiedSeats += categoryOccupied;
+    for (const t of tables) {
+      categorySeats += t.seatCount;
+      categoryOccupied += t.occupied.length;
+    }
 
     return {
       name: category,
@@ -126,45 +132,68 @@ export function getAvailability(): Availability {
     };
   });
 
+  for (const category of categories) {
+    totalSeats += category.seatCount;
+    occupiedSeats += category.occupiedCount;
+  }
+
   return {
-    categories,
-    totalSeats: totalSeats || getTotalSeats(),
+    totalSeats,
     occupiedSeats,
+    categories,
     updatedAt: new Date().toISOString(),
   };
 }
 
-export function getReservationById(id: number): Reservation | null {
-  const row = getDb()
-    .prepare(`SELECT ${RESERVATION_COLUMNS} FROM reservations WHERE id = ?`)
-    .get(id) as unknown as ReservationRow | undefined;
-
-  return row ? mapReservation(row) : null;
+export async function getSeatSummary(): Promise<{
+  totalSeats: number;
+  occupiedSeats: number;
+  availableSeats: number;
+}> {
+  const availability = await getAvailability();
+  return {
+    totalSeats: availability.totalSeats,
+    occupiedSeats: availability.occupiedSeats,
+    availableSeats:
+      Math.max(availability.totalSeats - availability.occupiedSeats, 0),
+  };
 }
 
-export function getReservationByInviteCode(inviteCode: string): Reservation | null {
-  const row = getDb()
-    .prepare(`SELECT ${RESERVATION_COLUMNS} FROM reservations WHERE invite_code = ?`)
-    .get(inviteCode.toUpperCase()) as unknown as ReservationRow | undefined;
 
-  return row ? mapReservation(row) : null;
+export async function getReservationById(
+  id: number,
+): Promise<Reservation | null> {
+  const reservations = await listReservations();
+  return reservations.find((reservation) => reservation.id === id) ?? null;
 }
 
-/**
- * Looks up the guest holding a specific chair.
- *
- * A chair belongs to a table and a seat number, so that pair is the identity
- * used everywhere: the two family categories share the High Table, and seat 3
- * there can only ever belong to one guest.
- */
-export function getReservationByTableSeat(table: string, seat: number): Reservation | null {
-  const row = getDb()
-    .prepare(
-      `SELECT ${RESERVATION_COLUMNS} FROM reservations WHERE table_name = ? AND seat = ?`,
-    )
-    .get(table, seat) as unknown as ReservationRow | undefined;
+export async function getReservationByInviteCode(
+  inviteCode: string,
+): Promise<Reservation | null> {
+  const upper = inviteCode.toUpperCase();
+  let cursor: string | undefined;
+  let page = await list({ prefix: SEAT_PREFIX, limit: 100, cursor });
+  do {
+    for (const blob of page.blobs) {
+      if (blob.pathname === COUNTER_BLOB || blob.pathname === ID_MAP_BLOB)
+        continue;
+      const reservation = await readReservationBlob(blob.pathname);
+      if (reservation && reservation.inviteCode.toUpperCase() === upper) {
+        return mapReservation(reservation);
+      }
+    }
+    cursor = page.cursor;
+    if (cursor)
+      page = await list({ prefix: SEAT_PREFIX, limit: 100, cursor });
+  } while (cursor);
+  return null;
+}
 
-  return row ? mapReservation(row) : null;
+export async function getReservationByTableSeat(
+  table: string,
+  seat: number,
+): Promise<Reservation | null> {
+  return readReservationBlob(seatBlobPath(table, seat));
 }
 
 /** Previous name kept for callers; a chair is identified by table and seat. */
@@ -172,111 +201,153 @@ export function getReservationBySeat(
   _category: string,
   table: string,
   seat: number,
-): Reservation | null {
+): Promise<Reservation | null> {
   return getReservationByTableSeat(table, seat);
 }
 
-/** Newest first, used by the admin view and the CSV export. */
-export function listReservations(): Reservation[] {
-  const rows = getDb()
-    .prepare(`SELECT ${RESERVATION_COLUMNS} FROM reservations ORDER BY id DESC`)
-    .all() as unknown as ReservationRow[];
-
-  return rows.map(mapReservation);
+export async function isSeatAvailable(table: string, seat: number): Promise<boolean> {
+  return !(await reservationBlobExists(table, seat));
 }
 
-/** Is this chair still free? */
-export function isSeatAvailable(table: string, seat: number): boolean {
-  return getReservationByTableSeat(table, seat) === null;
+export async function listReservations(): Promise<Reservation[]> {
+  const reservations: Reservation[] = [];
+  let cursor: string | undefined;
+  let page = await list({ prefix: SEAT_PREFIX, limit: 100, cursor });
+  do {
+    for (const blob of page.blobs) {
+      if (blob.pathname === COUNTER_BLOB || blob.pathname === ID_MAP_BLOB)
+        continue;
+      const reservation = await readReservationBlob(blob.pathname);
+      if (reservation) reservations.push(reservation);
+    }
+    cursor = page.cursor;
+    if (cursor)
+      page = await list({ prefix: SEAT_PREFIX, limit: 100, cursor });
+  } while (cursor);
+  reservations.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id);
+  return reservations;
 }
+
 
 /**
- * Saves the reservation with a single atomic INSERT.
+ * Saves the reservation with a single atomic create.
  *
- * The database itself refuses a duplicate seat, so two guests can never hold
- * the same chair: the loser gets `conflict: true` plus fresh availability.
+ * The seat blob is created with `allowOverwrite: false`, so two guests can
+ * never hold the same chair: the loser gets `conflict: true` plus fresh
+ * availability. Invite codes are still unique per guest, so a colliding code
+ * triggers another attempt.
  */
-export function reserveSeat(input: ReserveSeatInput): ReserveSeatResult {
-  const database = getDb();
+export async function reserveSeat(
+  input: ReserveSeatInput,
+): Promise<ReserveSeatResult> {
   const createdAt = new Date().toISOString();
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const inviteCode = createInviteCode();
 
-    try {
-      const result = database
-        .prepare(
-          `INSERT INTO reservations
-             (invite_code, name, email, category, table_name, seat, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          inviteCode,
-          input.name,
-          input.email,
-          input.category,
-          input.table,
-          input.seat,
-          createdAt,
-        );
+    if (await getReservationByInviteCode(inviteCode) !== null) {
+      continue;
+    }
 
-      const reservation = getReservationById(Number(result.lastInsertRowid));
-
-      if (!reservation) {
-        return { ok: false, error: "The seat could not be saved. Please try again." };
-      }
-
-      return {
-        ok: true,
-        reservation,
-        invitePath: buildInvitePath(reservation.inviteCode),
-      };
-    } catch (error) {
-      if (!isUniqueConstraintError(error)) throw error;
-
-      // The invite code collided (very unlikely), so just try another one.
-      if (isSeatAvailable(input.table, input.seat)) continue;
-
+    if (!(await isSeatAvailable(input.table, input.seat))) {
       return {
         ok: false,
         conflict: true,
         error: `Seat ${input.seat} on the ${input.table} was just taken by another guest. Please choose another seat.`,
-        availability: getAvailability(),
+        availability: await getAvailability(),
       };
+    }
+
+    // Keep numeric IDs without a shared, non-atomic max-ID counter.
+    const nextId = randomInt(1, 2 ** 48 - 1);
+    if (await getReservationById(nextId) !== null) continue;
+    const reservation: Reservation = {
+      id: nextId,
+      inviteCode,
+      name: input.name,
+      email: input.email,
+      category: input.category,
+      table: input.table,
+      seat: input.seat,
+      createdAt,
+    };
+
+    try {
+      await put(
+        seatBlobPath(input.table, input.seat),
+        JSON.stringify(reservation, null, 2),
+        {
+          access: "private",
+          contentType: "application/json",
+          addRandomSuffix: false,
+          allowOverwrite: false,
+        },
+      );
+
+      const stored = await readReservationBlob(
+        seatBlobPath(input.table, input.seat),
+      );
+      if (!stored) {
+        return {
+          ok: false,
+          error: "The seat could not be saved. Please try again.",
+        };
+      }
+
+      return {
+        ok: true,
+        reservation: mapReservation(stored),
+        invitePath: buildInvitePath(stored.inviteCode),
+      };
+    } catch (error) {
+      if (isSeatConflictError(error)) {
+        if (attempt < 4) continue;
+        return {
+          ok: false,
+          conflict: true,
+          error: `Seat ${input.seat} on the ${input.table} was just taken by another guest. Please choose another seat.`,
+          availability: await getAvailability(),
+        };
+      }
+      throw error;
     }
   }
 
   return {
     ok: false,
-    error: "We could not save this seat. Please refresh the page and try again.",
+    error:
+      "We could not save this seat. Please refresh the page and try again.",
   };
+}
+
+function isSeatConflictError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error instanceof BlobPreconditionFailedError) return true;
+  const message = error.message ?? "";
+  return /already exists|condition|precondition/i.test(message);
 }
 
 /** Frees a seat (admin action). Returns true when a row was removed. */
-export function releaseSeat(id: number): boolean {
-  const result = getDb().prepare("DELETE FROM reservations WHERE id = ?").run(id);
-  return Number(result.changes) > 0;
-}
+export async function releaseSeat(id: number): Promise<boolean> {
+  const reservation = await getReservationById(id);
+  if (!reservation) return false;
 
-/** Guest-facing summary counts. */
-export function getSeatSummary(): {
-  totalSeats: number;
-  occupiedSeats: number;
-  availableSeats: number;
-} {
-  const availability = getAvailability();
-  return {
-    totalSeats: availability.totalSeats,
-    occupiedSeats: availability.occupiedSeats,
-    availableSeats: Math.max(availability.totalSeats - availability.occupiedSeats, 0),
-  };
-}
+  const pathname = seatBlobPath(reservation.table, reservation.seat);
 
-/** Table + seat counts are defined in `lib/seating.ts` (getPlanSummary). */
+  try {
+    await del(pathname);
+  } catch {
+    return false;
+  }
+
+  return true;
+}
 
 function escapeCsvValue(value: string | number): string {
   const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  return /[",\n]/.test(text)
+    ? `"${text.replace(/"/g, '""')}"`
+    : text;
 }
 
 /** CSV export for the couple (opens straight in Excel or Google Sheets). */

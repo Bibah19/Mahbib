@@ -4,7 +4,6 @@ import path from "node:path";
 import Details from "@/app/components/Details";
 import DirectionSection from "@/app/components/DirectionSection";
 import Footer from "@/app/components/Footer";
-import GiftSection from "@/app/components/GiftSection";
 import Hero from "@/app/components/Hero";
 import SeatReservation from "@/app/components/SeatReservation";
 import SiteNav from "@/app/components/SiteNav";
@@ -34,8 +33,8 @@ function firstValue(value: string | string[] | undefined): string {
 
 export default async function Home({ searchParams }: HomePageProps) {
   const params = await searchParams;
-  const availability = getAvailability();
-  const summary = getSeatSummary();
+  const availability = await getAvailability();
+  const summary = await getSeatSummary();
 
   // Guests arriving from a saved invite link: /?guest=…&category=…&table=…&seat=…
   const guest = firstValue(params.guest).trim();
@@ -53,7 +52,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     isKnownTable(category, table) &&
     isValidSeat(category, table, seatNumber)
   ) {
-    const existing = getReservationBySeat(category, table, seatNumber);
+    const existing = await getReservationBySeat(category, table, seatNumber);
 
     reservedSeat = {
       name: existing?.name ?? guest,
@@ -73,7 +72,6 @@ export default async function Home({ searchParams }: HomePageProps) {
         <Details />
         <SeatReservation initialAvailability={availability} />
         <DirectionSection />
-        <GiftSection />
       </main>
       <Footer />
     </>

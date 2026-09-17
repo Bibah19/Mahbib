@@ -49,3 +49,21 @@ export function buildMailtoUrl(reservation: Reservation, inviteUrl: string): str
 export function buildInvitePlainTextPreview(reservation: Reservation, inviteUrl: string): string {
   return buildInviteBody(reservation, inviteUrl);
 }
+
+/** Cancellation notice subject line. Shares the sender identity of the invite so the guest recognises both emails as coming from the same source. */
+export function buildCancellationSubject(reservation: Reservation): string {
+  return `Seat released: ${reservation.table}, Seat ${reservation.seat}`;
+}
+
+/** Cancellation notice plain-text body. Addressed to the guest by name and written as a short note from the wedding host. No next-step action is requested. */
+export function buildCancellationBody(reservation: Reservation): string {
+  return [
+    `Hello ${reservation.name},`,
+    "",
+    `This is a short note from ${WEDDING_DETAILS.brideName} and ${WEDDING_DETAILS.groomName}.`,
+    "",
+    `Your seat on ${reservation.table}, Seat ${reservation.seat}, has been released by the host.`,
+    "",
+    "Thank you for being part of our celebration.",
+  ].join("\n");
+}

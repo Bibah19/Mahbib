@@ -23,7 +23,7 @@ type InvitePageProps = {
 export async function generateMetadata({ params }: InvitePageProps): Promise<Metadata> {
   const { code } = await params;
   const normalised = normaliseInviteCode(code);
-  const reservation = normalised ? getReservationByInviteCode(normalised) : null;
+  const reservation = normalised ? await getReservationByInviteCode(normalised) : null;
 
   return {
     title: reservation
@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: InvitePageProps): Promise<Met
 export default async function InvitePage({ params }: InvitePageProps) {
   const { code } = await params;
   const normalised = normaliseInviteCode(code);
-  const reservation = normalised ? getReservationByInviteCode(normalised) : null;
+  const reservation = normalised ? await getReservationByInviteCode(normalised) : null;
 
   if (!reservation) notFound();
 

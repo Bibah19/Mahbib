@@ -8,7 +8,6 @@ const NAV_LINKS = [
   { href: "#details", label: "Details" },
   { href: "#secure-seat", label: "Secure a Seat" },
   { href: "#direction", label: "Direction" },
-  { href: "#gift", label: "Gift" },
 ];
 
 export default function SiteNav() {
