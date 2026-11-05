@@ -1,5 +1,5 @@
 // Run with: node --test scripts/reservations.test.cjs
-// Transpile the existing TypeScript with the installed compiler; all Blob I/O is local.
+// Transpiles lib/reservations.ts and runs it against an in-memory fake of ./db.
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
@@ -13,51 +13,53 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 
 const input = { name: "Test Guest", email: "guest@example.com", category: "Family", table: "Table 1", seat: 1 };
-const seatPath = (seat) => `reservations/Table%201/${seat}.json`;
 const legacy = { ...input, id: 7, inviteCode: "ABCDEFGH", createdAt: "2026-01-01T00:00:00.000Z" };
 
+const toRow = (r) => ({
+  id: String(r.id), invite_code: r.inviteCode, name: r.name, email: r.email,
+  category: r.category, table_name: r.table, seat: r.seat, created_at: new Date(r.createdAt),
+});
+
 function setup(initial = [], overrides = {}) {
-  const blobs = new Map(initial.map((reservation) => [seatPath(reservation.seat), reservation]));
-  // These legacy metadata objects must never be treated as reservations.
-  blobs.set("reservations/_meta/id-map.json", { ids: [] });
-  blobs.set("reservations/_meta/counter.json", { nextId: 1 });
-  const writes = [];
-  class BlobNotFoundError extends Error {}
-  class BlobPreconditionFailedError extends Error {}
-  const blob = {
-    BlobNotFoundError,
-    BlobPreconditionFailedError,
-    async list({ prefix, cursor }) {
-      const paths = [...blobs.keys()].filter((key) => key.startsWith(prefix));
-      const offset = Number(cursor ?? 0);
-      const page = paths.slice(offset, offset + 2);
-      return {
-        blobs: page.map((pathname) => ({ pathname })),
-        cursor: offset + 2 < paths.length ? String(offset + 2) : undefined,
-      };
-    },
-    async get(pathname) {
-      if (!blobs.has(pathname)) throw new BlobNotFoundError();
-      return { statusCode: 200, stream: new Response(JSON.stringify(blobs.get(pathname))).body };
-    },
-    async put(pathname, body, options) {
-      writes.push({ pathname, options });
-      assert.equal(options.addRandomSuffix, false);
-      assert.equal(options.allowOverwrite, false);
-      assert.equal(options.access, "private");
-      if (blobs.has(pathname)) throw new BlobPreconditionFailedError();
-      blobs.set(pathname, JSON.parse(body));
-    },
-    async del(pathname) { blobs.delete(pathname); },
-    ...overrides,
-  };
+  const rows = initial.map(toRow);
+  const inserts = [];
+  const unique = (constraint) => Object.assign(new Error("duplicate key"), { code: "23505", constraint });
+
+  async function query(text, params = []) {
+    if (overrides.query) return overrides.query(text, params);
+    const sql = text.replace(/\s+/g, " ").trim();
+    if (sql.startsWith("SELECT table_name, seat")) return { rows: rows.map((r) => ({ table_name: r.table_name, seat: r.seat })) };
+    if (sql.includes("WHERE id = $1") && sql.startsWith("SELECT"))
+      return { rows: rows.filter((r) => r.id === String(params[0])) };
+    if (sql.includes("WHERE invite_code = $1")) return { rows: rows.filter((r) => r.invite_code === params[0]) };
+    if (sql.includes("WHERE table_name = $1 AND seat = $2"))
+      return { rows: rows.filter((r) => r.table_name === params[0] && r.seat === params[1]) };
+    if (sql.startsWith("SELECT"))
+      return { rows: [...rows].sort((a, b) => b.created_at - a.created_at || Number(b.id) - Number(a.id)) };
+    if (sql.startsWith("INSERT")) {
+      const [id, invite_code, name, email, category, table_name, seat] = params;
+      inserts.push(params);
+      if (rows.some((r) => r.table_name === table_name && r.seat === seat)) throw unique("reservations_table_name_seat_key");
+      if (rows.some((r) => r.invite_code === invite_code)) throw unique("reservations_invite_code_key");
+      const row = { id: String(id), invite_code, name, email, category, table_name, seat, created_at: new Date() };
+      rows.push(row);
+      return { rows: [row] };
+    }
+    if (sql.startsWith("DELETE")) {
+      const i = rows.findIndex((r) => r.id === String(params[0]));
+      if (i >= 0) rows.splice(i, 1);
+      return { rowCount: i >= 0 ? 1 : 0, rows: [] };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  }
+
   const exports = {};
   vm.runInNewContext(compiled, {
-    exports, Response, Error,
+    exports, Error, Date, Number, String,
     require(name) {
       if (name === "server-only") return {};
       if (name === "node:crypto") return require(name);
-      if (name === "./storage") return blob;
+      if (name === "./db") return { query };
       if (name === "./seating") return {
         getCategories: () => ["Family"],
         getCategoryQuota: () => 10,
@@ -66,60 +68,74 @@ function setup(initial = [], overrides = {}) {
       throw new Error(`Unexpected dependency: ${name}`);
     },
   });
-  return { api: exports, blobs, writes };
+  return { api: exports, rows, inserts };
 }
 
-test("legacy numeric IDs work without an ID map, across list pages", async () => {
-  const { api } = setup([legacy, { ...legacy, id: 8, seat: 2 }]);
+test("looks up reservations by numeric ID", async () => {
+  const { api } = setup([legacy, { ...legacy, id: 8, seat: 2, inviteCode: "ZZZZZZZZ" }]);
   assert.equal((await api.getReservationById(7)).name, legacy.name);
   assert.equal((await api.getReservationById(8)).seat, 2);
   assert.equal(await api.getReservationById(999), null);
 });
 
-test("creates a fixed-path private reservation without metadata writes", async () => {
-  const { api, writes } = setup();
-  const result = await api.reserveSeat(input);
-  assert.equal(result.ok, true);
-  assert.ok(Number.isSafeInteger(result.reservation.id));
-  assert.ok(result.reservation.id > 0);
-  assert.equal(result.invitePath, `/invite/${result.reservation.inviteCode}`);
-  assert.equal((await api.getReservationById(result.reservation.id)).seat, 1);
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].pathname, seatPath(1));
+test("looks up reservations by invite code, case-insensitively", async () => {
+  const { api } = setup([legacy]);
+  assert.equal((await api.getReservationByInviteCode("abcdefgh")).id, 7);
 });
 
-test("occupied seats return conflict without overwriting the guest", async () => {
-  const { api, writes } = setup([legacy]);
+test("creates a reservation and maps the row", async () => {
+  const { api, inserts } = setup();
+  const result = await api.reserveSeat(input);
+  assert.equal(result.ok, true);
+  assert.ok(Number.isSafeInteger(result.reservation.id) && result.reservation.id > 0);
+  assert.equal(result.invitePath, `/invite/${result.reservation.inviteCode}`);
+  assert.equal((await api.getReservationById(result.reservation.id)).seat, 1);
+  assert.equal(inserts.length, 1);
+});
+
+test("occupied seats return conflict without inserting", async () => {
+  const { api, inserts } = setup([legacy]);
   const result = await api.reserveSeat(input);
   assert.equal(result.ok, false);
   assert.equal(result.conflict, true);
   assert.equal(result.availability.occupiedSeats, 1);
-  assert.equal(writes.length, 0);
+  assert.equal(inserts.length, 0);
+});
+
+test("a seat unique violation at insert time becomes a conflict", async () => {
+  const { api } = setup([], {
+    async query(text) {
+      if (text.includes("INSERT")) throw Object.assign(new Error("dup"), { code: "23505", constraint: "reservations_table_name_seat_key" });
+      return { rows: [] };
+    },
+  });
+  const result = await api.reserveSeat(input);
+  assert.equal(result.ok, false);
+  assert.equal(result.conflict, true);
 });
 
 test("simultaneous requests cannot claim the same seat", async () => {
-  const { api, blobs } = setup();
+  const { api, rows } = setup();
   const results = await Promise.all([api.reserveSeat(input), api.reserveSeat(input)]);
-  assert.equal(results.filter((result) => result.ok).length, 1);
-  assert.equal(results.filter((result) => result.conflict).length, 1);
-  assert.ok(blobs.has(seatPath(1)));
+  assert.equal(results.filter((r) => r.ok).length, 1);
+  assert.equal(results.filter((r) => r.conflict).length, 1);
+  assert.equal(rows.length, 1);
 });
 
-test("release finds a legacy ID and frees only its seat", async () => {
-  const { api, blobs } = setup([legacy, { ...legacy, id: 8, seat: 2 }]);
+test("release frees only the matching seat", async () => {
+  const { api, rows } = setup([legacy, { ...legacy, id: 8, seat: 2, inviteCode: "ZZZZZZZZ" }]);
   assert.equal(await api.releaseSeat(7), true);
-  assert.equal(blobs.has(seatPath(1)), false);
-  assert.equal(blobs.has(seatPath(2)), true);
+  assert.equal(rows.length, 1);
   assert.equal(await api.releaseSeat(7), false);
 });
 
-test("newest reservations sort first regardless of their random ID", async () => {
-  const { api } = setup([legacy, { ...legacy, id: 2, seat: 2, createdAt: "2026-02-01T00:00:00.000Z" }]);
+test("newest reservations sort first", async () => {
+  const { api } = setup([legacy, { ...legacy, id: 2, seat: 2, inviteCode: "ZZZZZZZZ", createdAt: "2026-02-01T00:00:00.000Z" }]);
   assert.equal((await api.listReservations())[0].id, 2);
 });
 
-test("storage failures are not mistaken for an available seat", async () => {
-  const failure = new Error("Storage unavailable");
-  const { api } = setup([], { async get() { throw failure; } });
+test("database failures are not mistaken for an available seat", async () => {
+  const failure = new Error("Database unavailable");
+  const { api } = setup([], { async query() { throw failure; } });
   await assert.rejects(api.isSeatAvailable("Table 1", 1), (error) => error === failure);
 });
