@@ -841,22 +841,68 @@
   padding: 24px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 8%, rgba(14, 143, 107, 0.38), transparent 55%),
-    radial-gradient(circle at 50% 110%, rgba(22, 55, 95, 0.7), transparent 62%),
+    radial-gradient(ellipse at 50% 0%, rgba(14, 143, 107, 0.42), transparent 55%),
+    radial-gradient(circle at 12% 88%, rgba(22, 55, 95, 0.75), transparent 45%),
+    radial-gradient(circle at 90% 70%, rgba(14, 143, 107, 0.16), transparent 40%),
     linear-gradient(180deg, var(--color-navy-night), #04101c);
-  transition: opacity 0.65s ease;
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.envelope-intro[data-state="done"] {
-  opacity: 0;
+/* A fine inner frame, like the border of a printed invitation. */
+.envelope-intro::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(204, 213, 216, 0.22);
+  border-radius: 6px;
   pointer-events: none;
 }
 
+.envelope-intro::after {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  border: 1px solid rgba(14, 143, 107, 0.28);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.envelope-intro[data-state="leaving"],
+.envelope-intro[data-state="done"] {
+  opacity: 0;
+  transform: scale(1.06);
+  pointer-events: none;
+}
+
+/* Drifting specks of light. Positions are fixed so server and client match. */
+.envelope-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.envelope-sparkles span {
+  position: absolute;
+  left: var(--x);
+  bottom: -14px;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff, rgba(110, 231, 183, 0.55) 45%, transparent 70%);
+  opacity: 0;
+  animation: envelope-rise var(--t) linear var(--d) infinite;
+}
+
 .envelope-stage {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: 20px;
   text-align: center;
+  animation: envelope-enter 1s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 .envelope-eyebrow {
@@ -864,9 +910,9 @@
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--color-ash);
+  color: #6ee7b7;
 }
 
 .envelope-ask {
@@ -910,18 +956,61 @@
 
 .envelope-names {
   margin: 0;
-  font-size: clamp(30px, 6vw, 46px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 0.3em;
+  font-size: clamp(32px, 6.4vw, 54px);
   font-weight: 500;
   color: #fff;
-  line-height: 1.1;
+  line-height: 1;
+  text-shadow: 0 2px 24px rgba(14, 143, 107, 0.45);
+}
+
+.envelope-amp {
+  font-size: 0.8em;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.05;
+  color: #6ee7b7;
+}
+
+.envelope-ornament {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.envelope-ornament::before,
+.envelope-ornament::after {
+  content: "";
+  width: 54px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(110, 231, 183, 0.8));
+}
+
+.envelope-ornament::after {
+  transform: scaleX(-1);
+}
+
+.envelope-ornament i {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #6ee7b7;
+  box-shadow: 0 0 10px rgba(110, 231, 183, 0.8);
 }
 
 .envelope-date {
   margin: 0;
   font-family: var(--font-sans);
   font-size: 13px;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.72);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 /* A flat, frontal view of a real paper envelope. The gentle bob is the
@@ -930,8 +1019,6 @@
   position: relative;
   width: min(460px, 90vw);
   padding-bottom: 22px;
-  perspective: 1400px;
-  perspective-origin: 50% 0%;
   animation: envelope-float 6s ease-in-out infinite;
 }
 
@@ -961,6 +1048,10 @@
   position: relative;
   width: 100%;
   aspect-ratio: 3 / 2;
+  /* Perspective lives on the flap's direct parent, so the flap really swings
+     toward the viewer as it opens. */
+  perspective: 900px;
+  perspective-origin: 50% 25%;
   --paper-grain: repeating-linear-gradient(
     115deg,
     rgba(120, 96, 50, 0.05) 0 2px,
@@ -986,30 +1077,48 @@
   border: 1px solid rgba(120, 96, 50, 0.4);
   box-shadow:
     inset 0 0 44px rgba(120, 96, 50, 0.14),
-    0 1px 2px rgba(70, 55, 25, 0.25);
+    0 1px 2px rgba(70, 55, 25, 0.25),
+    0 28px 60px rgba(0, 0, 0, 0.5),
+    0 0 90px rgba(14, 143, 107, 0.16);
 }
 
-/* The invitation card sits BEHIND the back panel: genuinely invisible
-   while sealed, and it rises out of the mouth when the flap opens. */
+/* The darker inside of the envelope, revealed under the flap when it opens. */
+.envelope-back::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  clip-path: polygon(0 0, 100% 0, 50% 50%);
+  background: linear-gradient(180deg, #b9a67c 0%, #d9c9a3 60%, #e8dcc0 100%);
+  box-shadow: inset 0 10px 18px rgba(70, 55, 25, 0.35);
+}
+
+/* The invitation card sits INSIDE the envelope pocket: above the back panel
+   but below the three folds and the flap, so it is hidden while sealed and
+   slides up out of the opening once the flap is lifted. */
 .envelope-card {
   position: absolute;
   left: 7%;
   right: 7%;
-  bottom: 12%;
-  z-index: 0;
+  bottom: 8%;
+  height: 78%;
+  z-index: 2;
   display: grid;
+  align-content: start;
   justify-items: center;
-  gap: 8px;
-  padding: 18px 16px 26px;
-  border-radius: 10px;
+  gap: 10px;
+  padding: 26px 16px 0;
+  border-radius: 8px;
+  outline: 1px solid rgba(10, 107, 81, 0.38);
+  outline-offset: -7px;
   background: linear-gradient(180deg, #ffffff, #f6efdd);
   border: 1px solid rgba(120, 96, 50, 0.35);
-  box-shadow: 0 10px 26px rgba(20, 14, 4, 0.4);
-  transition: transform 1s cubic-bezier(0.22, 0.61, 0.36, 1) 0.25s;
+  box-shadow: 0 6px 22px rgba(20, 14, 4, 0.35);
+  transform-origin: 50% 100%;
 }
 
 .envelope-card strong {
-  font-size: clamp(18px, 3.4vw, 24px);
+  font-size: clamp(22px, 4.2vw, 30px);
   font-weight: 500;
   color: var(--color-navy-deep);
 }
@@ -1030,7 +1139,7 @@
 .envelope-fold-left {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   clip-path: polygon(0 0, 50% 50%, 0 100%);
   background:
     var(--paper-grain),
@@ -1042,7 +1151,7 @@
 .envelope-fold-right {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   clip-path: polygon(100% 0, 50% 50%, 100% 100%);
   background:
     var(--paper-grain),
@@ -1054,7 +1163,7 @@
 .envelope-fold-bottom {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 4;
   clip-path: polygon(0 100%, 50% 50%, 100% 100%);
   background:
     var(--paper-grain),
@@ -1068,7 +1177,7 @@
 .envelope-flap-shadow {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 5;
   clip-path: polygon(0 0, 100% 0, 50% 100%);
   transform: translateY(3px);
   background: linear-gradient(180deg, rgba(70, 55, 25, 0.22), transparent 82%);
@@ -1081,10 +1190,9 @@
   right: 0;
   top: 0;
   height: 50%;
-  z-index: 5;
+  z-index: 6;
   transform-origin: top center;
   transform-style: preserve-3d;
-  transition: transform 0.9s cubic-bezier(0.4, 0.02, 0.3, 1);
 }
 
 /* Both faces share the triangular clip and hide their own backface, so
@@ -1099,6 +1207,8 @@
 /* Front of the flap: ivory paper, top-lit. */
 .envelope-flap-face--front {
   background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpolygon points='5,6 95,6 50,86' fill='none' stroke='%230a6b51' stroke-opacity='.5' stroke-width='1.2' stroke-dasharray='5 4' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E")
+      center / 100% 100% no-repeat,
     var(--paper-grain),
     linear-gradient(180deg, #fcf7ea 0%, #f4ecd7 55%, #ecdfc4 100%);
   box-shadow: inset 0 -6px 14px rgba(120, 96, 50, 0.2);
@@ -1135,7 +1245,7 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  z-index: 6;
+  z-index: 7;
   transform: translate(-50%, -50%);
   width: clamp(78px, 20vw, 104px);
   aspect-ratio: 1;
@@ -1218,6 +1328,20 @@
     14px 16px 0 -12px rgba(10, 107, 81, 0.85);
 }
 
+/* A soft ripple that invites the tap. */
+.envelope-seal-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(110, 231, 183, 0.7);
+  pointer-events: none;
+  animation: envelope-ripple 2.4s ease-out infinite;
+}
+
+.envelope-seal-ring--late {
+  animation-delay: 1.2s;
+}
+
 .envelope-seal-mono {
   font-family: var(--font-display);
   font-size: clamp(21px, 5.4vw, 29px);
@@ -1231,22 +1355,26 @@
 /* Opened state: the flap flips up (liner showing), its shadow fades,
    and the card rises out of the envelope mouth. */
 .envelope-intro[data-state="opening"] .envelope-flap,
+.envelope-intro[data-state="leaving"] .envelope-flap,
 .envelope-intro[data-state="done"] .envelope-flap {
-  transform: rotateX(178deg);
+  animation: envelope-flap-open 1.05s cubic-bezier(0.45, 0.05, 0.25, 1) 0.2s both;
 }
 
 .envelope-intro[data-state="opening"] .envelope-flap-shadow,
+.envelope-intro[data-state="leaving"] .envelope-flap-shadow,
 .envelope-intro[data-state="done"] .envelope-flap-shadow {
   opacity: 0;
 }
 
 /* The scene stops floating and the shadow settles while it opens. */
 .envelope-intro[data-state="opening"] .envelope-scene,
+.envelope-intro[data-state="leaving"] .envelope-scene,
 .envelope-intro[data-state="done"] .envelope-scene {
   animation: none;
 }
 
 .envelope-intro[data-state="opening"] .envelope-shadow,
+.envelope-intro[data-state="leaving"] .envelope-shadow,
 .envelope-intro[data-state="done"] .envelope-shadow {
   animation: none;
   opacity: 0.7;
@@ -1258,23 +1386,110 @@
   animation: envelope-sheen 0.9s ease 0.05s;
 }
 
+.envelope-intro[data-state="opening"] .envelope-seal-ring,
+.envelope-intro[data-state="leaving"] .envelope-seal-ring,
+.envelope-intro[data-state="done"] .envelope-seal-ring {
+  display: none;
+}
+
 .envelope-intro[data-state="opening"] .envelope-seal,
+.envelope-intro[data-state="leaving"] .envelope-seal,
 .envelope-intro[data-state="done"] .envelope-seal {
   opacity: 0;
-  transform: translate(-50%, -50%) scale(1.4) rotate(6deg);
-  filter: blur(2px);
+  transform: translate(-50%, -50%) scale(1.25) rotate(4deg);
+  filter: blur(1px);
   pointer-events: none;
+  transition-duration: 0.3s;
 }
 
 .envelope-intro[data-state="opening"] .envelope-card,
+.envelope-intro[data-state="leaving"] .envelope-card,
 .envelope-intro[data-state="done"] .envelope-card {
-  transform: translateY(-64%);
+  animation: envelope-card-out 1.7s cubic-bezier(0.25, 0.6, 0.3, 1) 0.9s both;
+}
+
+/* Everything around the envelope steps back so the card is the star. */
+.envelope-intro[data-state="opening"] :is(.envelope-eyebrow, .envelope-names, .envelope-ornament, .envelope-date, .envelope-ask, .btn),
+.envelope-intro[data-state="leaving"] :is(.envelope-eyebrow, .envelope-names, .envelope-ornament, .envelope-date, .envelope-ask, .btn) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
 }
 
 .envelope-intro[data-state="opening"] .envelope-invited,
+.envelope-intro[data-state="leaving"] .envelope-invited,
 .envelope-intro[data-state="done"] .envelope-invited {
-  opacity: 0.25;
-  transition: opacity 0.6s ease;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+/* The flap hinges on the top edge, swings toward the viewer, and lays flat
+   above the envelope. Halfway (edge-on) it drops behind the card. */
+@keyframes envelope-flap-open {
+  0% {
+    transform: rotateX(0deg);
+    z-index: 6;
+  }
+  49% {
+    z-index: 6;
+  }
+  50% {
+    z-index: 1;
+  }
+  100% {
+    transform: rotateX(180deg);
+    z-index: 1;
+  }
+}
+
+/* The card slides straight up out of the pocket, pauses, then lifts a touch
+   further toward the viewer. */
+@keyframes envelope-card-out {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  60% {
+    transform: translateY(-58%) scale(1);
+  }
+  100% {
+    transform: translateY(-66%) scale(1.07);
+  }
+}
+
+@keyframes envelope-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes envelope-ripple {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+@keyframes envelope-rise {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(var(--drift), -105vh) scale(1);
+    opacity: 0;
+  }
 }
 
 @keyframes envelope-float {
@@ -1317,5 +1532,63 @@
 
   .envelope-shadow {
     height: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .envelope-sparkles,
+  .envelope-seal-ring {
+    display: none;
+  }
+
+  .envelope-stage {
+    animation: none;
+  }
+
+  .envelope-intro {
+    transition: none;
+  }
+}
+
+/* Short screens (small laptops, phones in landscape): tighten everything so
+   the whole envelope still fits. */
+@media (max-height: 780px) {
+  .envelope-stage {
+    gap: 12px;
+  }
+
+  .envelope-scene {
+    width: min(380px, 90vw);
+  }
+
+  .envelope-invited {
+    font-size: 18px;
+  }
+}
+
+@media (max-height: 640px) {
+  .envelope-scene {
+    width: min(300px, 90vw);
+  }
+
+  .envelope-eyebrow,
+  .envelope-ornament {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .envelope-stage {
+    max-width: 100%;
+  }
+
+  .envelope-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+  }
+
+  .envelope-date {
+    font-size: 12px;
+    letter-spacing: 0.12em;
   }
 }
