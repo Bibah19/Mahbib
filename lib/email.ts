@@ -38,7 +38,10 @@ export function isEmailDeliveryConfigured(): boolean {
 }
 
 function getSenderAddress(): string {
-  return process.env.EMAIL_FROM || "Wedding Invitations <onboarding@resend.dev>";
+  // Hosting dashboards keep quotes/whitespace pasted into a value literally,
+  // which Resend rejects as an invalid `from` field.
+  const configured = process.env.EMAIL_FROM?.trim().replace(/^["']|["']$/g, "").trim();
+  return configured || "Wedding Invitations <onboarding@resend.dev>";
 }
 
 function buildInviteHtml(reservation: Reservation, inviteUrl: string): string {
