@@ -38,7 +38,7 @@ export const WEDDING_DETAILS = {
   venue: {
     name: "The University of Ibadan International Conference Centre (UI-ICC)",
     address:
-      "Beside the Second Gate of the University of Ibadan, Ojoo-Mokola Expressway (UI-Ojoo Road), Ibadan, Oyo State, Nigeria",
+      "Along UI - Ojoo Road, Orogun Area, University of Ibadan, Ibadan, Oyo State, Nigeria",
 
     /** Shown under "How to get to the venue" and shared through the share button. */
     directionsText:
@@ -46,11 +46,11 @@ export const WEDDING_DETAILS = {
 
     /**
      * The International Conference Centre, University of Ibadan (UI-ICC).
-     * Verified by the couple: Latitude 7.4531 N, Longitude 3.9060 E.
+     * Verified by the couple: Latitude 7.46011 N, Longitude 3.90532 E.
      */
     coordinates: {
-      lat: 7.4531,
-      lng: 3.906,
+      lat: 7.4529432622257445,
+      lng: 3.9061945098394517,
     } satisfies VenueCoordinates,
 
     /** The map zoom level: 13 = city, 15 = street, 17 = building. */
