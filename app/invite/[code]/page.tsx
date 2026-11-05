@@ -67,6 +67,24 @@ export default async function InvitePage({ params }: InvitePageProps) {
             </p>
           </div>
 
+          <div className="mt-8 flex flex-col items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/invite-card/${reservation.inviteCode}`}
+              alt={`Wedding invitation card for ${reservation.name}`}
+              width={1080}
+              height={1500}
+              className="h-auto w-full max-w-[420px] rounded-sm shadow-lg"
+            />
+            <a
+              className="btn btn-primary"
+              href={`/api/invite-card/${reservation.inviteCode}?download=1`}
+              download
+            >
+              Download invitation card
+            </a>
+          </div>
+
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.8fr]">
             <div className="grid gap-3">
               {details.map((item) => (

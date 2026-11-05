@@ -76,10 +76,12 @@ export const WEDDING_DETAILS = {
 
 /** Tile layer used by the real map (Leaflet + OpenStreetMap data). */
 export const MAP_TILE_LAYER = {
-  url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  // CARTO's free basemaps now demand an API key, so use OpenStreetMap's own
+  // tiles (free, no key; fine for a small site like this).
+  url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   attribution:
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  maxZoom: 20,
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19,
 } as const;
 
 /** "Oyenike & Oladayo" */

@@ -152,7 +152,7 @@ export default function VenueMap() {
         >
           OpenStreetMap
         </a>{" "}
-        contributors, courtesy of CARTO ({MAP_TILE_LAYER.maxZoom}x maximum zoom).
+        contributors ({MAP_TILE_LAYER.maxZoom}x maximum zoom).
       </p>
     </div>
   );

@@ -20,6 +20,7 @@ import {
   buildInviteBody,
   buildInviteSubject,
 } from "./invite-message";
+import { inviteCardFilename, renderInviteCard } from "./invite-card";
 import { WEDDING_DETAILS } from "./wedding-config";
 import type { Reservation } from "./types";
 
@@ -44,7 +45,42 @@ function getSenderAddress(): string {
   return configured || "Wedding Invitations <onboarding@resend.dev>";
 }
 
-function buildInviteHtml(reservation: Reservation, inviteUrl: string): string {
+const CARD_CONTENT_ID = "invite-card";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildInviteHtml(
+  reservation: Reservation,
+  inviteUrl: string,
+  withCard = false,
+): string {
+  if (withCard) {
+    const name = escapeHtml(reservation.name);
+    return `
+    <div style="font-family:Georgia,'Times New Roman',serif;background:#eef3f4;padding:24px 12px;color:#0f1b2d">
+      <div style="max-width:560px;margin:auto">
+        <p style="font-family:Arial,sans-serif;font-size:15px;color:#55667a;margin:0 0 16px;text-align:center">
+          Dear ${name}, your seat is secured. Here is your personal invitation.
+        </p>
+        <img src="cid:${CARD_CONTENT_ID}" alt="Wedding invitation for ${name}: Table ${escapeHtml(reservation.table)}, Seat ${reservation.seat}" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0;border-radius:6px" />
+        <p style="margin:22px 0 0;text-align:center">
+          <a href="${inviteUrl}" style="background:#0a6b51;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:16px;font-family:Arial,sans-serif;font-weight:700;font-size:14px;display:inline-block">
+            Open my invitation
+          </a>
+        </p>
+        <p style="font-family:Arial,sans-serif;font-size:12px;color:#55667a;margin:18px 0 0;text-align:center">
+          The card is also attached to this email so you can save or share it.
+        </p>
+      </div>
+    </div>
+  `;
+  }
   return `
     <div style="font-family:Georgia,'Times New Roman',serif;background:#f7f9f8;padding:32px;color:#0f1b2d">
       <div style="max-width:560px;margin:auto;background:#ffffff;border:1px solid rgba(22,55,95,.22);border-radius:24px;padding:32px">
@@ -89,6 +125,16 @@ export async function sendInviteEmail(
     return { status: "skipped", message: "Automatic email is not configured." };
   }
 
+  // The personalised card is a bonus: if it cannot be drawn, still send the
+  // plain invitation email rather than failing the whole message.
+  let card: string | null = null;
+  try {
+    card = Buffer.from(await renderInviteCard(reservation)).toString("base64");
+  } catch (error) {
+    if (diagnostics) diagnostics.log("warn", "invite_card_failed", error);
+    else console.error("Invitation card could not be created.");
+  }
+
   try {
     const response = await fetch(RESEND_ENDPOINT, {
       method: "POST",
@@ -102,7 +148,19 @@ export async function sendInviteEmail(
         reply_to: WEDDING_DETAILS.contactEmail,
         subject: buildInviteSubject(reservation),
         text: buildInviteBody(reservation, inviteUrl),
-        html: buildInviteHtml(reservation, inviteUrl),
+        html: buildInviteHtml(reservation, inviteUrl, card !== null),
+        ...(card
+          ? {
+              attachments: [
+                {
+                  filename: inviteCardFilename(reservation),
+                  content: card,
+                  content_type: "image/png",
+                  content_id: CARD_CONTENT_ID,
+                },
+              ],
+            }
+          : {}),
       }),
     });
 
