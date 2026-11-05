@@ -30,7 +30,7 @@ export const WEDDING_DETAILS = {
   weddingDate: "Saturday, 12th December 2026",
   /** Shown everywhere the time appears. */
   weddingTime: "10 am",
-  dressCode: "Trads (Navy Blue & Ash)",
+  dressCode: "Trads (Navy Blue & Grey or silver)",
 
   /** Seats in the hall. Must equal the total in `lib/seating.ts`. */
   hallCapacity: 200,
